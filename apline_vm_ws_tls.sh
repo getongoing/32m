@@ -25,8 +25,8 @@ else
     wget https://github.com/XTLS/Xray-core/releases/download/$last_version/Xray-linux-64.zip
     cd /root
     mkdir ./Xray
-    unzip -d /root/Xray Xray-linux-32.zip
-    rm Xray-linux-32.zip
+    unzip -d /root/Xray Xray-linux-64.zip
+    rm Xray-linux-64.zip
     cd /root/Xray
     if [[ -f "xray" ]]; then
         green "下载成功！"
