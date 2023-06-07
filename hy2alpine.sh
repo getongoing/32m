@@ -999,7 +999,7 @@ WantedBy=multi-user.target
 EOF
     chmod 644 /etc/systemd/system/hihy.service
     systemctl daemon-reload
-    systemctl enable hihy
+    rc–update add hihy
     rc-service hihy start
 	crontab -l > /tmp/crontab.tmp
 	echo  "15 4 * * 1,4 hihy cronTask" >> /tmp/crontab.tmp
