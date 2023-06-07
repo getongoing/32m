@@ -942,7 +942,7 @@ function hihyNotify(){
 
 function hyCoreNotify(){
 	if [ -f "/etc/hihy/bin/appS" ]; then
-  		localV=`/etc/hihy/bin/appS -v | cut -d " " -f 3`
+		localV=`/etc/hihy/bin/appS -v | cut -d " " -f 3`
 		remoteV=`wget -qO- -t1 -T2 --no-check-certificate "https://api.github.com/repos/apernet/hysteria/releases/latest" | grep "tag_name" | head -n 1 | awk -F ":" '{print $2}' | sed 's/\"//g;s/,//g;s/ //g'`
 		if [ -z $remoteV ];then
 			echoColor red "Network Error: Can't connect to Github for checking the hysteria version!"
@@ -951,12 +951,14 @@ function hyCoreNotify(){
 				echoColor purple "[Update] hysteria有更新,version:${remoteV}. detail: https://github.com/apernet/hysteria/blob/master/CHANGELOG.md"
 			fi
 		fi
-		
+
 	fi
 }
 
 
-function checkStatus(){
+function checkStatus()
+{
+	echoColor green "检查状态中..."
 }
 
 function install()
