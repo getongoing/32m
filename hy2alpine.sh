@@ -860,14 +860,9 @@ function updateHysteriaCore(){
 		if [ "${localV}" = "${remoteV}" ];then
 			echoColor green "Already the latest version.Ignore."
 		else
-			status=`systemctl is-active hihy`
-			if [ "${status}" = "active" ];then #如果是正常运行情况下将先停止守护进程再自动更新后重启，否则只负责更新
-				rc-service hihy stop
-				downloadHysteriaCore
-				rc-service hihy start
-			else
-				downloadHysteriaCore
-			fi
+			rc-service hihy stop
+			downloadHysteriaCore
+			rc-service hihy start
 			echoColor green "Hysteria Core update done."
 		fi
 	else
@@ -962,12 +957,6 @@ function hyCoreNotify(){
 
 
 function checkStatus(){
-	status=`systemctl is-active hihy`
-    if [ "${status}" = "active" ];then
-		echoColor green "hysteria正常运行"
-	else
-		echoColor red "Dead!hysteria未正常运行!"
-	fi
 }
 
 function install()
@@ -998,7 +987,8 @@ ExecStart=/etc/hihy/bin/appS --log-level info -c /etc/hihy/conf/hihyServer.json 
 WantedBy=multi-user.target
 EOF
     chmod 644 /etc/systemd/system/hihy.service
-    systemctl daemon-reload
+    #systemctl daemon-reload
+    rc-service hihy stop
     rc–update add hihy
     rc-service hihy start
 	crontab -l > /tmp/crontab.tmp
@@ -1032,161 +1022,16 @@ function checkFirewalldAllowPort() {
 
 function allowPort() {
 	# 如果防火墙启动状态则添加相应的开放端口
-	# $1 tcp/udp
-	# $2 port
-	if systemctl status netfilter-persistent 2>/dev/null | grep -q "active (exited)"; then
-		local updateFirewalldStatus=
-		if ! iptables -L | grep -q "allow ${1}/${2}(hihysteria)"; then
-			updateFirewalldStatus=true
-			iptables -I INPUT -p ${1} --dport ${2} -m comment --comment "allow ${1}/${2}(hihysteria)" -j ACCEPT 2> /dev/null
-			echoColor purple "IPTABLES OPEN: ${1}/${2}"
-		fi
-		if echo "${updateFirewalldStatus}" | grep -q "true"; then
-			netfilter-persistent save 2>/dev/null
-		fi
-	elif [[ `ufw status 2>/dev/null | grep "Status: " | awk '{print $2}'` = "active" ]]; then
-		if ! ufw status | grep -q ${2}; then
-			ufw allow ${2} 2>/dev/null
-			checkUFWAllowPort ${2}
-		fi
-	elif systemctl status firewalld 2>/dev/null | grep -q "active (running)"; then
-		local updateFirewalldStatus=
-		if ! firewall-cmd --list-ports --permanent | grep -qw "${2}/${1}"; then
-			updateFirewalldStatus=true
-			firewall-cmd --zone=public --add-port=${2}/${1} --permanent 2>/dev/null
-			checkFirewalldAllowPort ${2} ${1}
-		fi
-		if echo "${updateFirewalldStatus}" | grep -q "true"; then
-			firewall-cmd --reload
-		fi
-	fi
 }
 
 function delPortHoppingNat(){
-	# $1 portHoppingStart
-	# $2 portHoppingEnd
-	# $3 portHoppingTarget
-	if systemctl status firewalld 2>/dev/null | grep -q "active (running)"; then
-		firewall-cmd --permanent --remove-forward-port=port=$1-$2:proto=udp:toport=$3
-		firewall-cmd --reload
-	else
-		iptables -t nat -F PREROUTING  2>/dev/null
-		ip6tables -t nat -F PREROUTING  2>/dev/null
-		if systemctl status netfilter-persistent 2>/dev/null | grep -q "active (exited)"; then
-			netfilter-persistent save 2> /dev/null
-		fi
 
-	fi
 }
 
-function addPortHoppingNat() {
-	# $1 portHoppingStart
-	# $2 portHoppingEnd
-	# $3 portHoppingTarget
-	# 如果防火墙启动状态则删除之前的规则
-	if [[ -n $(find /etc -name "redhat-release") ]] || grep </proc/version -q -i "centos"; then
-		mkdir -p /etc/yum.repos.d
-
-		if [[ -f "/etc/centos-release" ]]; then
-			centosVersion=$(rpm -q centos-release | awk -F "[-]" '{print $3}' | awk -F "[.]" '{print $1}')
-
-			if [[ -z "${centosVersion}" ]] && grep </etc/centos-release -q -i "release 8"; then
-				centosVersion=8
-			fi
-		fi
-		release="centos"
-		installType='yum -y -q install'
-		removeType='yum -y -q remove'
-		upgrade="yum update -y  --skip-broken"
-	elif grep </etc/issue -q -i "debian" && [[ -f "/etc/issue" ]] || grep </etc/issue -q -i "debian" && [[ -f "/proc/version" ]]; then
-		release="debian"
-		installType='apt -y -q install'
-		upgrade="apt update"
-		updateReleaseInfoChange='apt-get --allow-releaseinfo-change update'
-		removeType='apt -y -q autoremove'
-	elif grep </etc/issue -q -i "ubuntu" && [[ -f "/etc/issue" ]] || grep </etc/issue -q -i "ubuntu" && [[ -f "/proc/version" ]]; then
-		release="ubuntu"
-		installType='apt -y -q install'
-		upgrade="apt update"
-		updateReleaseInfoChange='apt-get --allow-releaseinfo-change update'
-		removeType='apt -y -q autoremove'
-		if grep </etc/issue -q -i "16."; then
-			release=
-		fi
-	fi
-
-	if [[ -z ${release} ]]; then
-		echoColor red "\n本脚本不支持此系统,请将下方日志反馈给开发者\n"
-		echoColor yellow "$(cat /etc/issue)"
-		echoColor yellow "$(cat /proc/version)"
-		exit 0
-	fi
-
-	if systemctl status firewalld 2>/dev/null | grep -q "active (running)"; then
-		if ! firewall-cmd --query-masquerade --permanent 2>/dev/null | grep -q "yes"; then
-			firewall-cmd --add-masquerade --permanent 2>/dev/null
-			firewall-cmd --reload 2>/dev/null
-			echoColor purple "FIREWALLD MASQUERADE OPEN"
-		fi
-		firewall-cmd --add-forward-port=port=$1-$2:proto=udp:toport=$3 --permanent 2>/dev/null
-		firewall-cmd --reload 2>/dev/null
-	else
-		if ! [ -x "$(command -v netfilter-persistent)" ]; then
-			echoColor green "*iptables-persistent"
-			echoColor purple "\nUpdate.wait..."
-			${upgrade}
-			${installType} "iptables-persistent"
-		fi
-		if ! [ -x "$(command -v netfilter-persistent)" ]; then
-			echoColor red "[Warnning]:netfilter-persistent安装失败,但安装进度不会停止,只是您的PortHopping转发规则为临时规则,重启可能失效,是否继续使用临时规则?(y/N)"
-			read continueInstall
-			if [[ "${continueInstall}" != "y" ]]; then
-				exit 0
-			fi
-		fi
-		iptables -t nat -F PREROUTING  2>/dev/null
-		iptables -t nat -A PREROUTING -p udp --dport $1:$2 -m comment --comment "NAT $1:$2 to $3 (PortHopping-hihysteria)" -j DNAT --to-destination :$3 2>/dev/null
-		ip6tables -t nat -A PREROUTING -p udp --dport $1:$2 -m comment --comment "NAT $1:$2 to $3 (PortHopping-hihysteria)" -j DNAT --to-destination :$3 2>/dev/null
-		
-		if systemctl status netfilter-persistent 2>/dev/null | grep -q "active (exited)"; then
-			netfilter-persistent save 2> /dev/null
-		else 
-			echoColor red "netfilter-persistent未启动,PortHopping转发规则无法持久化,重启系统失效,请手动执行netfilter-persistent save,继续执行脚本不影响后续配置..."
-		fi
-
-	fi
-    
+function addPortHoppingNat() {    
 }
 
 function delHihyFirewallPort() {
-	# 如果防火墙启动状态则删除之前的规则
-	port=`cat /etc/hihy/conf/hihyServer.json | grep "listen" | awk '{print $2}' | tr -cd "[0-9]"`
-	if [[ `ufw status 2>/dev/null | grep "Status: " | awk '{print $2}'` = "active" ]]	; then
-		if ufw status | grep -q ${port}; then
-			sudo ufw delete allow ${port} 2> /dev/null
-		fi
-	elif systemctl status firewalld 2>/dev/null | grep -q "active (running)"; then
-		local updateFirewalldStatus=
-		isFaketcp=`cat /etc/hihy/conf/hihyServer.json | grep "faketcp"`
-		if [ -z "${isFaketcp}" ];then
-			ut="udp"
-		else
-			ut="tcp"
-		fi
-		if firewall-cmd --list-ports --permanent | grep -qw "${port}/${ut}"; then
-			updateFirewalldStatus=true
-			firewall-cmd --zone=public --remove-port=${port}/${ut} --permanent 2> /dev/null
-		fi
-		if echo "${updateFirewalldStatus}" | grep -q "true"; then
-			firewall-cmd --reload 2> /dev/null
-		fi
-	elif systemctl status netfilter-persistent 2>/dev/null | grep -q "active (exited)"; then
-		updateFirewalldStatus=true
-		iptables-save |  sed -e '/hihysteria/d' | iptables-restore
-		if echo "${updateFirewalldStatus}" | grep -q "true"; then
-			netfilter-persistent save 2>/dev/null
-		fi
-	fi
 }
 
 function checkRoot(){
@@ -1476,15 +1321,6 @@ function cronTask(){
 function start(){
 	rc-service hihy start
 	echoColor purple "start..."
-	sleep 5
-	status=`systemctl is-active hihy`
-	if [ "${status}" = "active" ];then
-		echoColor green "启动成功"
-	else
-		echoColor red "启动失败"
-		echo -e "未知错误:请手动运行:\033[32m/etc/hihy/bin/appS -c /etc/hihy/conf/hihyServer.json server\033[0m"
-		echoColor red "查看错误日志,反馈到issue!"
-	fi
 }
 
 function stop(){
@@ -1495,15 +1331,6 @@ function stop(){
 function restart(){
 	rc-service hihy restart
 	echoColor purple "restart..."
-	sleep 5
-	status=`systemctl is-active hihy`
-	if [ "${status}" = "active" ];then
-		echoColor green "重启成功"
-	else
-		echoColor red "重启失败"
-		echo -e "未知错误:请手动运行:\033[32m/etc/hihy/bin/appS -c /etc/hihy/conf/hihyServer.json server\033[0m"
-		echoColor red "查看错误日志,反馈到issue!"
-	fi
 }
 
 function menu()
