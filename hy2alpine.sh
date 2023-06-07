@@ -862,9 +862,9 @@ function updateHysteriaCore(){
 		else
 			status=`systemctl is-active hihy`
 			if [ "${status}" = "active" ];then #如果是正常运行情况下将先停止守护进程再自动更新后重启，否则只负责更新
-				systemctl stop hihy
+				rc-service hihy stop
 				downloadHysteriaCore
-				systemctl start hihy
+				rc-service hihy start
 			else
 				downloadHysteriaCore
 			fi
@@ -884,7 +884,7 @@ function changeServerConfig(){
 		exit
 	fi
 	echoColor red "Stop hihy service..."
-	systemctl stop hihy
+	rc-service hihy stop
 	echoColor red "Delete old config..."
 	if [ -f "/etc/hihy/conf/hihy.conf" ]; then
 		portHoppingStatus=`cat /etc/hihy/conf/hihy.conf | grep "portHopping" | awk -F ":" '{print $2}'`
@@ -907,7 +907,7 @@ function changeServerConfig(){
 	delHihyFirewallPort
 	updateHysteriaCore
 	setHysteriaConfig
-	systemctl start hihy
+	rc-service hihy start
 	printMsg
 	echoColor yellowBlack "重新配置完成."
 	
@@ -1000,7 +1000,7 @@ EOF
     chmod 644 /etc/systemd/system/hihy.service
     systemctl daemon-reload
     systemctl enable hihy
-    systemctl start hihy
+    rc-service hihy start
 	crontab -l > /tmp/crontab.tmp
 	echo  "15 4 * * 1,4 hihy cronTask" >> /tmp/crontab.tmp
 	crontab /tmp/crontab.tmp
@@ -1269,7 +1269,7 @@ function changeMode(){
 		echoColor red "无法识别协议类型!"
 		exit
 	fi
-	systemctl restart hihy
+	rc-service hihy restart
 	echoColor green "修改成功"
 }
 
@@ -1469,12 +1469,12 @@ function checkLogs(){
 }
 
 function cronTask(){
-	systemctl restart hihy #防止hysteria占用内存过大
-	systemctl restart systemd-journald #防止日志占用内存过大
+	rc-service hihy restart #防止hysteria占用内存过大
+	rc-service systemd-journald restart #防止日志占用内存过大
 }
 
 function start(){
-	systemctl start hihy
+	rc-service hihy start
 	echoColor purple "start..."
 	sleep 5
 	status=`systemctl is-active hihy`
@@ -1488,12 +1488,12 @@ function start(){
 }
 
 function stop(){
-	systemctl stop hihy
+	rc-service hihy stop
 	echoColor green "暂停成功"
 }
 
 function restart(){
-	systemctl restart hihy
+	rc-service hihy restart
 	echoColor purple "restart..."
 	sleep 5
 	status=`systemctl is-active hihy`
