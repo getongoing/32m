@@ -160,7 +160,7 @@ function changeIp64(){
                 exit
             else
                 sed -i 's/"resolve_preference": "64"/"resolve_preference": "46"/g' /etc/hihy/conf/hihyServer.json
-                systemctl restart hihy
+		rc-service hihy restart
                 echoColor green "Done.Ipv4 first now."
             fi
             
@@ -174,7 +174,7 @@ function changeIp64(){
                 exit
             else
                 sed -i 's/"resolve_preference": "46",/"resolve_preference": "64",/g' /etc/hihy/conf/hihyServer.json
-                systemctl restart hihy
+                rc-service hihy restart
                 echoColor green "Done.Ipv6 first now."
             fi
         ;;
